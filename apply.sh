@@ -24,9 +24,8 @@ fi
 
 if [[ ! -d "$TARGET_VENV" ]]; then
   echo "Target venv not found: $TARGET_VENV"
-  echo "먼저 아래를 실행해 주세요:"
-  echo "  cp -a ~/share/ddiff-base /ddiff-base"
-  exit 1
+  echo "  cp -a ~/workspace/shared/ddiff-base /ddiff-base"
+  cp -a ~/workspace/shared/ddiff-base /ddiff-base || exit 1
 fi
 
 mkdir -p "${WORK_DIR}/diff"
