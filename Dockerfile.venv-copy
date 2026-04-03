@@ -1,0 +1,46 @@
+ARG BASE_IMAGE=junwha/ddiff-base:cu12.4.1-py3.10-torch-251214
+ARG NEW_IMAGE=junwha/ddiff-base:cu12.4.1-py3.10-torch-251214
+ARG TORCH_VERSION
+ARG OUTPUT_TAR=venvdiff.tar.gz
+
+FROM ${NEW_IMAGE} AS new_image
+ARG TORCH_VERSION
+
+FROM ${BASE_IMAGE} AS diff_builder
+ARG TORCH_VERSION
+ARG OUTPUT_TAR
+WORKDIR /venvdiff
+
+COPY src /venvdiff/src
+COPY pyrsync-py3.10 /venvdiff/pyrsync-py3.10
+
+# 0~1) Copy new image venv into base image as "...-new"
+COPY --from=new_image /ddiff-base/py3.10-torch${TORCH_VERSION} /ddiff-base/py3.10-torch${TORCH_VERSION}-new
+
+RUN pip install pyrsync-py3.10/* --no-deps
+
+# 2) Run make/apply/diff inside build system (no docker run)
+RUN python3 /venvdiff/src/make_diff.py \
+      --base /ddiff-base/py3.10-torch${TORCH_VERSION} \
+      --new /ddiff-base/py3.10-torch${TORCH_VERSION}-new \
+      --out /venvdiff/diff
+
+RUN cp -a /ddiff-base/py3.10-torch${TORCH_VERSION} /venvdiff/applied && \
+    python3 /venvdiff/src/apply_diff.py \
+      --base /venvdiff/applied \
+      --diff /venvdiff/diff && \
+    python3 /venvdiff/src/make_diff.py \
+      --base /venvdiff/applied \
+      --new /ddiff-base/py3.10-torch${TORCH_VERSION}-new \
+      --out /venvdiff/verify-diff && \
+    if [ -n "$(find /venvdiff/verify-diff -type f -print -quit)" ]; then \
+      echo "Verification failed after apply. Remaining diff files:"; \
+      find /venvdiff/verify-diff -type f | sort; \
+      exit 1; \
+    fi
+
+RUN tar -C /venvdiff/diff -czf /venvdiff/${OUTPUT_TAR} .
+
+FROM scratch AS artifact
+ARG OUTPUT_TAR
+COPY --from=diff_builder /venvdiff/${OUTPUT_TAR} /${OUTPUT_TAR}

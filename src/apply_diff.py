@@ -3,6 +3,15 @@ import shutil
 from pathlib import Path
 from pyrsync import patch
 
+def remove_empty_parent_dirs(path: Path, stop_path: Path):
+    current = path.parent
+    while current != stop_path and current.exists():
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
+
 def apply_folder_diff(base_dir, diff_dir):
     base_path = Path(base_dir)
     diff_path = Path(diff_dir)
@@ -45,6 +54,16 @@ def apply_folder_diff(base_dir, diff_dir):
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(diff_item, dest_file)
             print(f"[+] Patch 완료 (추가됨): {rel_path}")
+
+        elif rel_path_str.endswith('.delete'):
+            # [삭제된 파일] -> 기준 폴더에서 제거
+            rel_path = Path(rel_path_str[:-7])  # '.delete' 확장자 제거
+            target_file = base_path / rel_path
+
+            if target_file.exists():
+                target_file.unlink()
+                remove_empty_parent_dirs(target_file, base_path)
+                print(f"[x] Patch 완료 (삭제됨): {rel_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Diff 폴더를 기준 폴더에 적용합니다.")

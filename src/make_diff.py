@@ -1,6 +1,6 @@
 import argparse
 import shutil
-import filecmp # ★ 파일 내용 비교를 위해 추가
+import filecmp
 from io import BytesIO
 from pathlib import Path
 from pyrsync import get_signature_args, signature, delta
@@ -23,7 +23,6 @@ def generate_folder_diff(base_dir, new_dir, diff_dir):
         diff_out_dir.mkdir(parents=True, exist_ok=True)
 
         if base_file.exists():
-            # ★ 추가된 부분: 파일 내용이 완전히 동일하면 건너뜁니다!
             if filecmp.cmp(base_file, new_file, shallow=False):
                 print(f"[-] 변경 없음 (Skip): {rel_path}")
                 continue
@@ -50,6 +49,20 @@ def generate_folder_diff(base_dir, new_dir, diff_dir):
             new_out_file = diff_path / (str(rel_path) + '.new')
             shutil.copy2(new_file, new_out_file)
             print(f"[+] Diff 생성됨 (추가): {rel_path}")
+
+    # [삭제된 파일] base에는 있지만 new에는 없는 파일 표시
+    for base_file in base_path.rglob('*'):
+        if not base_file.is_file():
+            continue
+
+        rel_path = base_file.relative_to(base_path)
+        new_file = new_path / rel_path
+
+        if not new_file.exists():
+            delete_marker = diff_path / (str(rel_path) + '.delete')
+            delete_marker.parent.mkdir(parents=True, exist_ok=True)
+            delete_marker.touch()
+            print(f"[x] Diff 생성됨 (삭제): {rel_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="두 폴더를 비교하여 Diff(차이점) 폴더를 생성합니다.")
