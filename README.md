@@ -1,23 +1,53 @@
 # VenvDiff
 
-## Make Diff
+Create and apply venv-level diffs between Docker images.
+
+## Make a Diff
 
 ```bash
 ./make_diff.sh <new_image_tag> <torch_version>
 ```
 
-- Base image is fixed to `junwha/ddiff-base:cu12.4.1-py3.10-torch-251214`.
-- The script copies:
-  - base: `/ddiff-base/py3.10-torch<torch_version>`
-  - new: `/ddiff-base/py3.10-torch<torch_version>-new`
-- `docker buildx build` 내부 단계에서 `src/make_diff.py` 실행 + `src/apply_diff.py` 검증 + `diff` 확인을 수행합니다. (`docker run` 사용 안 함)
-- 변경 유형: 수정(`.delta`), 추가(`.new`), 삭제(`.delete`)
-- 마지막에 아래 파일을 생성합니다:
-  - `<new_image_tag with '/'->'--' and ':'->'-'>.tar.gz`
+Example:
 
-## Apply
+```bash
+./make_diff.sh myrepo/my-image:latest 2.5.1
+```
+
+This creates:
+
+```bash
+myrepo--my-image-latest.tar.gz
+```
+
+## Apply a Diff
+
+Prepare base files, then apply:
 
 ```bash
 cp -a ~/share/ddiff-base /ddiff-base
 ./apply.sh <torch_version> <tar.gz>
 ```
+
+Example:
+
+```bash
+./apply.sh 2.5.1 myrepo--my-image-latest.tar.gz
+```
+
+## Current Behavior
+
+- Base image is fixed to `junwha/ddiff-base:cu12.4.1-py3.10-torch-251214`.
+- Diff generation is executed inside `docker buildx build` stages only (no `docker run`).
+- Build stage installs `pyrsync` from local wheels in `pyrsync-py3.10/`.
+- Virtualenv paths:
+  - Base: `/ddiff-base/py3.10-torch<torch_version>`
+  - New: `/ddiff-base/py3.10-torch<torch_version>-new`
+- Supported diff artifacts:
+  - Modified file: `.delta`
+  - Added file: `.new`
+  - Deleted file: `.delete`
+- Output archive name format:
+  - Replace `/` with `--`
+  - Replace `:` with `-`
+  - Final file: `<sanitized_new_image_tag>.tar.gz`
